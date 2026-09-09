@@ -1,0 +1,24 @@
+{
+  "name": "opencode-openai-compatible-autodiscover",
+  "version": "1.0.0",
+  "description": "Auto-discover models from OpenAI-compatible endpoints (llama.cpp, Ollama, etc.)",
+  "type": "module",
+  "main": "openai-compatible-autodiscover.js",
+  "exports": {
+    ".": "./openai-compatible-autodiscover.js"
+  },
+  "license": "MIT",
+  "author": "HarutoHiroki",
+  "keywords": [
+    "opencode",
+    "plugin",
+    "openai-compatible",
+    "model-discovery",
+    "llama.cpp",
+    "llama-router"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/HarutoHiroki/OpenCode-AutoDiscovery"
+  }
+}
