@@ -1,4 +1,4 @@
-# opencode-openai-compatible-autodiscover
+# OpenCode AutoDiscovery Plugin
 
 Auto-discovers models from OpenAI-compatible endpoints and populates opencode's model list. Works with llama.cpp, Ollama, LM Studio, and anything else that uses the `/v1/models` API.
 
