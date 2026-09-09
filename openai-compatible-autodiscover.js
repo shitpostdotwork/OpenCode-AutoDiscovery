@@ -7,29 +7,24 @@
 export default async () => {
   const capitalize = (s) => s[0].toUpperCase() + s.slice(1).toLowerCase();
 
+  // Special formatting stuff, most models are first letter capitalized otherwise
   const KNOWN_PREFIXES = {
     wordslop: "WordSlop",
     thinkingcap: "ThinkingCap",
   };
 
   const KNOWN_MODELS = {
-    qwen: "Qwen",
-    gemma: "Gemma",
     glm: "GLM",
-    laguna: "Laguna",
-    kimi: "Kimi",
     minimax: "MiniMax",
   };
 
   const KNOWN_TAGS = {
-    a3b: "A3B",
-    a4b: "A4B",
     uncensored: "Uncensored",
     flash: "Flash",
     single: "Single",
     instruct: "Instruct",
     code: "Code",
-    moe: "MoE",
+    moe: "MoE"
   };
 
   const beautifyModelName = (id) => {
@@ -56,6 +51,12 @@ export default async () => {
         i++;
       } else if (/^\d+b$/i.test(seg)) {
         segments.push(seg.replace(/\d+b$/i, (m) => m.toUpperCase()));
+        i++;
+      } else if (/^a(\d+)([bmt]?)$/i.test(seg)) {
+        const match = seg.match(/^a(\d+)([bmt]?)$/i);
+        const num = match[1];
+        const suffix = match[2] ? match[2].toUpperCase() : "";
+        segments.push(`A${num}${suffix}`);
         i++;
       } else if (seg in KNOWN_TAGS) {
         segments.push(KNOWN_TAGS[seg]);
@@ -95,6 +96,7 @@ export default async () => {
       }
       if (Object.keys(limits).length > 0) {
         // console.log(`openai-compatible-autodiscover: fetched limits for ${Object.keys(limits).length} models from llama.cpp /models`);
+        // console log debug is the best >:D
       }
       return limits;
     } catch {
