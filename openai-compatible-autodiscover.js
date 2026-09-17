@@ -88,7 +88,7 @@ export default async () => {
       const data = await res.json();
       const limits = {};
       for (const m of data.data || []) {
-        const ctx = m.meta?.n_ctx ?? parseArg(m.status?.args, "--ctx-size");
+        const ctx = m.meta?.n_ctx ?? m.context_length ?? parseArg(m.status?.args, "--ctx-size");
         const out = parseArg(m.status?.args, "--n-predict");
         if (ctx || out) {
           limits[m.id] = { context: ctx, output: out };
@@ -116,10 +116,12 @@ export default async () => {
       const models = {};
       for (const m of data.data || []) {
         const lim = limits[m.id];
+        const inputModalities = m.architecture?.input_modalities?.map((s) => s.toLowerCase()) ?? ["text"];
+        const outputModalities = m.architecture?.output_modalities?.map((s) => s.toLowerCase()) ?? ["text"];
         const entry = {
           name: beautifyModelName(m.id),
           tool_call: true,
-          modalities: { input: ["text", "image"], output: ["text"] },
+          modalities: { input: inputModalities, output: outputModalities },
           ...(lim && (lim.context || lim.output) && { limit: lim }),
         };
         // Check for reasoning effort capabilities
