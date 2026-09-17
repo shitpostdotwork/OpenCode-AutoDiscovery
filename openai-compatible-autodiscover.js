@@ -131,11 +131,9 @@ export default async () => {
           entry.variants = {};
           for (const level of levels) {
             entry.variants[level] = {
-              options: { reasoningEffort: level },
+              reasoningEffort: level,
             };
           }
-          // Set default variant
-          entry.default_variant = defaultLevel;
         }
         models[m.id] = entry;
       }
