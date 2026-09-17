@@ -75,33 +75,23 @@ export default async () => {
     return segments.join(" ");
   };
 
-  const parseArg = (args, flag) => {
-    const i = args.indexOf(flag);
-    if (i >= 0 && i + 1 < args.length) return parseInt(args[i + 1], 10);
-    return undefined;
+  const positive = (value) => {
+    const parsed = typeof value === "string" ? Number(value) : value;
+    return typeof parsed === "number" && Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
   };
 
-  const fetchLimits = async (baseURL) => {
-    const base = baseURL.replace(/\/v1$/, "");
-    try {
-      const res = await fetch(base + "/models");
-      const data = await res.json();
-      const limits = {};
-      for (const m of data.data || []) {
-        const ctx = m.meta?.n_ctx ?? m.context_length ?? parseArg(m.status?.args, "--ctx-size");
-        const out = parseArg(m.status?.args, "--n-predict");
-        if (ctx || out) {
-          limits[m.id] = { context: ctx, output: out };
-        }
-      }
-      if (Object.keys(limits).length > 0) {
-        // console.log(`openai-compatible-autodiscover: fetched limits for ${Object.keys(limits).length} models from llama.cpp /models`);
-        // console log debug is the best >:D
-      }
-      return limits;
-    } catch {
-      return {};
-    }
+  const contextLimitOf = (m) => {
+    return positive(m.context_length) ?? positive(m.max_model_len) ?? positive(m.meta?.n_ctx);
+  };
+
+  const outputLimitOf = (m) => {
+    return positive(m.max_completion_tokens)
+      ?? positive(m.top_provider?.max_completion_tokens)
+      ?? positive(m.max_output_tokens);
+  };
+
+  const defaultOutputLimit = (contextLimit) => {
+    return Math.min(Math.floor(contextLimit / 4), 32000);
   };
 
   const discover = async (id, cfg) => {
@@ -109,26 +99,37 @@ export default async () => {
     if (!baseURL) return;
     baseURL = baseURL.replace(/\/+$/, "");
     if (!baseURL.endsWith("/v1")) baseURL += "/v1";
+    const apiKey = cfg.options?.apiKey;
     try {
-      const res = await fetch(baseURL + "/models");
+      const headers = {};
+      if (apiKey && typeof apiKey === "string" && apiKey !== "") {
+        headers["Authorization"] = `Bearer ${apiKey}`;
+      }
+      const res = await fetch(baseURL + "/models", { headers: Object.keys(headers).length > 0 ? headers : undefined });
       const data = await res.json();
-      const limits = await fetchLimits(baseURL);
-      const models = {};
+      const existingModels = cfg.models || {};
+      const models = { ...existingModels };
       for (const m of data.data || []) {
-        const lim = limits[m.id];
+        // Respect existing configured models
+        if (existingModels[m.id]) continue;
+        const contextLimit = contextLimitOf(m);
+        const outputLimit = outputLimitOf(m) ?? (contextLimit ? defaultOutputLimit(contextLimit) : undefined);
         const inputModalities = m.architecture?.input_modalities?.map((s) => s.toLowerCase()) ?? ["text"];
         const outputModalities = m.architecture?.output_modalities?.map((s) => s.toLowerCase()) ?? ["text"];
         const entry = {
           name: beautifyModelName(m.id),
           tool_call: true,
           modalities: { input: inputModalities, output: outputModalities },
-          ...(lim && (lim.context || lim.output) && { limit: lim }),
         };
+        if (contextLimit || outputLimit) {
+          entry.limit = {};
+          if (contextLimit) entry.limit.context = contextLimit;
+          if (outputLimit) entry.limit.output = outputLimit;
+        }
         // Check for reasoning effort capabilities
         const caps = m.capabilities;
         if (caps?.reasoning_effort?.levels?.length > 0) {
           const levels = caps.reasoning_effort.levels;
-          const defaultLevel = caps.reasoning_effort.default || levels[0];
           // Build variants for each reasoning effort level
           entry.variants = {};
           for (const level of levels) {

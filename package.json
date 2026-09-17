@@ -1,6 +1,6 @@
 {
   "name": "opencode-openai-compatible-autodiscover",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Auto-discover models from OpenAI-compatible endpoints (llama.cpp, Ollama, etc.)",
   "type": "module",
   "main": "openai-compatible-autodiscover.js",
