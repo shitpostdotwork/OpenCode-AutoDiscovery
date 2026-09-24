@@ -49,8 +49,8 @@ export default async () => {
         }
         segments.push(version);
         i++;
-      } else if (/^\d+b$/i.test(seg)) {
-        segments.push(seg.replace(/\d+b$/i, (m) => m.toUpperCase()));
+      } else if (/^\d+[bkmg]$/i.test(seg)) {
+        segments.push(seg.replace(/\d+[bkmg]$/i, (m) => m.toUpperCase()));
         i++;
       } else if (/^a(\d+)([bmt]?)$/i.test(seg)) {
         const match = seg.match(/^a(\d+)([bmt]?)$/i);
@@ -112,6 +112,8 @@ export default async () => {
       for (const m of data.data || []) {
         // Respect existing configured models
         if (existingModels[m.id]) continue;
+        // Skip embedding models
+        if (m.id.toLowerCase().includes("embedding") || m.id.toLowerCase().includes("embed")) continue;
         const contextLimit = contextLimitOf(m);
         const outputLimit = outputLimitOf(m) ?? (contextLimit ? defaultOutputLimit(contextLimit) : undefined);
         const inputModalities = m.architecture?.input_modalities?.map((s) => s.toLowerCase()) ?? ["text"];
@@ -137,6 +139,14 @@ export default async () => {
               reasoningEffort: level,
             };
           }
+        }
+        const pricing = m.pricing;
+        if (pricing?.input || pricing?.output) {
+          entry.cost = {
+            input: pricing.input ?? 0,
+            output: pricing.output ?? 0,
+            cache_read: pricing.cache_read ?? 0,
+          };
         }
         models[m.id] = entry;
       }
