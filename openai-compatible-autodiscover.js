@@ -62,8 +62,13 @@ export default async () => {
         segments.push(KNOWN_TAGS[seg]);
         i++;
       } else if (/^[a-z]\d+$/i.test(seg)) {
-        segments.push(seg.toUpperCase());
-        i++;
+        if (i + 1 < parts.length && /^\d+$/.test(parts[i + 1])) {
+          segments.push(seg.toUpperCase() + "." + parts[i + 1]);
+          i += 2;
+        } else {
+          segments.push(seg.toUpperCase());
+          i++;
+        }
       } else {
         segments.push(
           seg.length === 1 ? seg.toUpperCase() : capitalize(seg),
