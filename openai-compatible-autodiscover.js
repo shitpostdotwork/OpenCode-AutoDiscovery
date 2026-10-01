@@ -98,6 +98,35 @@ export default async () => {
   const defaultOutputLimit = (contextLimit) => {
     return Math.min(Math.floor(contextLimit / 4), 32000);
   };
+  
+  const reasoningOf = (m) => {
+    const raw = m.reasoning_effort;
+    if (!raw || !Array.isArray(raw.levels)) return undefined;
+    const levels = raw.levels.filter((l) => typeof l === "string" && l !== "");
+    if (levels.length === 0) return undefined;
+    return {
+      levels,
+      disable: typeof raw.disable === "string" ? raw.disable : undefined,
+      default: typeof raw.default === "string" && levels.includes(raw.default) ? raw.default : undefined,
+    };
+  };
+
+  // The router's disable keyword -> how thinking-off is encoded on the wire:
+  //   "none"   -> reasoning_effort "none"
+  //   "lowest" -> the lowest available level
+  //   "qwen"   -> chat_template_kwargs.enable_thinking false
+  const disableVariantOf = (reasoning) => {
+    switch (reasoning.disable) {
+      case "none":
+        return { reasoningEffort: "none" };
+      case "lowest":
+        return { reasoningEffort: reasoning.levels[0] };
+      case "qwen":
+        return { chat_template_kwargs: { enable_thinking: false } };
+      default:
+        return undefined;
+    }
+  };
 
   const discover = async (id, cfg) => {
     let baseURL = cfg.options?.baseURL;
@@ -121,29 +150,30 @@ export default async () => {
         if (m.id.toLowerCase().includes("embedding") || m.id.toLowerCase().includes("embed")) continue;
         const contextLimit = contextLimitOf(m);
         const outputLimit = outputLimitOf(m) ?? (contextLimit ? defaultOutputLimit(contextLimit) : undefined);
-        const inputModalities = m.architecture?.input_modalities?.map((s) => s.toLowerCase()) ?? ["text"];
-        const outputModalities = m.architecture?.output_modalities?.map((s) => s.toLowerCase()) ?? ["text"];
+        const inputModalities = (m.architecture?.input_modalities ?? m.modalities ?? ["text"]).map((s) => s.toLowerCase());
+        const outputModalities = (m.architecture?.output_modalities ?? ["text"]).map((s) => s.toLowerCase());
+        const params = Array.isArray(m.supported_parameters) ? m.supported_parameters : undefined;
+        const reasoning = reasoningOf(m);
         const entry = {
           name: beautifyModelName(m.id),
-          tool_call: true,
+          tool_call: params ? params.includes("tools") : true,
           modalities: { input: inputModalities, output: outputModalities },
         };
-        if (contextLimit || outputLimit) {
-          entry.limit = {};
-          if (contextLimit) entry.limit.context = contextLimit;
-          if (outputLimit) entry.limit.output = outputLimit;
+        if (contextLimit && outputLimit) {
+          entry.limit = { context: contextLimit, output: outputLimit };
         }
-        // Check for reasoning effort capabilities
-        const caps = m.capabilities;
-        if (caps?.reasoning_effort?.levels?.length > 0) {
-          const levels = caps.reasoning_effort.levels;
-          // Build variants for each reasoning effort level
+        if (reasoning) {
+          entry.reasoning = true;
           entry.variants = {};
-          for (const level of levels) {
-            entry.variants[level] = {
-              reasoningEffort: level,
-            };
+          for (const level of reasoning.levels) {
+            entry.variants[level] = { reasoningEffort: level };
           }
+          if (reasoning.default) {
+            entry.options = { reasoningEffort: reasoning.default };
+          }
+          // Thinking-off variant per the router's disable keyword
+          const off = disableVariantOf(reasoning);
+          if (off) entry.variants.none = off;
         }
         const pricing = m.pricing;
         if (pricing?.input || pricing?.output) {
@@ -151,6 +181,7 @@ export default async () => {
             input: pricing.input ?? 0,
             output: pricing.output ?? 0,
             cache_read: pricing.cache_read ?? 0,
+            cache_write: pricing.cache_write ?? 0,
           };
         }
         models[m.id] = entry;
