@@ -189,11 +189,11 @@ export default async () => {
             if (off) entry.variants.none = off;
           }
           const pricing = m.pricing;
-          if (pricing?.input || pricing?.output) {
+          if (pricing?.prompt || pricing?.completion) {
             entry.cost = {
-              input: pricing.input ?? 0,
-              output: pricing.output ?? 0,
-              cache_read: pricing.cache_read ?? 0,
+              input: pricing.prompt ?? 0,
+              output: pricing.completion ?? 0,
+              cache_read: pricing.input_cache_read ?? 0,
               cache_write: pricing.cache_write ?? 0,
             };
           }
