@@ -20,7 +20,6 @@ jobs:
         with:
           node-version: 22
           registry-url: https://git.shitpost.work/api/packages/shitpost.work/npm/
-          cache: npm
 
       - name: Validate tag and package version
         id: package
