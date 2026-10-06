@@ -189,12 +189,17 @@ export default async () => {
             if (off) entry.variants.none = off;
           }
           const pricing = m.pricing;
-          if (pricing?.prompt || pricing?.completion) {
+          const toNum = (v) => typeof v === "string" ? Number(v) : v;
+          const promptPrice = toNum(pricing?.prompt);
+          const completionPrice = toNum(pricing?.completion);
+          const cacheReadPrice = toNum(pricing?.input_cache_read);
+          const cacheWritePrice = toNum(pricing?.cache_write);
+          if (promptPrice || completionPrice) {
             entry.cost = {
-              input: pricing.prompt ?? 0,
-              output: pricing.completion ?? 0,
-              cache_read: pricing.input_cache_read ?? 0,
-              cache_write: pricing.cache_write ?? 0,
+              input: promptPrice ?? 0,
+              output: completionPrice ?? 0,
+              cache_read: cacheReadPrice ?? 0,
+              cache_write: cacheWritePrice ?? 0,
             };
           }
           models[m.id] = entry;
