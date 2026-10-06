@@ -68,6 +68,8 @@ jobs:
 
       - name: Publish to Forgejo
         if: steps.pkg-version.outputs.exists != 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --access public
 
       - name: Create release
