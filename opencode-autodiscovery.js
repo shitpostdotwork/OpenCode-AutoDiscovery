@@ -134,66 +134,89 @@ export default async () => {
     baseURL = baseURL.replace(/\/+$/, "");
     if (!baseURL.endsWith("/v1")) baseURL += "/v1";
     const apiKey = cfg.options?.apiKey;
-    try {
-      const headers = {};
-      if (apiKey && typeof apiKey === "string" && apiKey !== "") {
-        headers["Authorization"] = `Bearer ${apiKey}`;
-      }
-      const res = await fetch(baseURL + "/models", { headers: Object.keys(headers).length > 0 ? headers : undefined });
-      const data = await res.json();
-      const existingModels = cfg.models || {};
-      const models = { ...existingModels };
-      for (const m of data.data || []) {
-        // Respect existing configured models
-        if (existingModels[m.id]) continue;
-        // Skip embedding models
-        if (m.id.toLowerCase().includes("embedding") || m.id.toLowerCase().includes("embed")) continue;
-        const contextLimit = contextLimitOf(m);
-        const outputLimit = outputLimitOf(m) ?? (contextLimit ? defaultOutputLimit(contextLimit) : undefined);
-        const inputModalities = (m.architecture?.input_modalities ?? m.modalities ?? ["text"]).map((s) => s.toLowerCase());
-        const outputModalities = (m.architecture?.output_modalities ?? ["text"]).map((s) => s.toLowerCase());
-        const params = Array.isArray(m.supported_parameters) ? m.supported_parameters : undefined;
-        const reasoning = reasoningOf(m);
-        const entry = {
-          name: beautifyModelName(m.id),
-          tool_call: params ? params.includes("tools") : true,
-          modalities: { input: inputModalities, output: outputModalities },
-        };
-        if (contextLimit && outputLimit) {
-          entry.limit = { context: contextLimit, output: outputLimit };
-        }
-        if (reasoning) {
-          entry.reasoning = true;
-          entry.variants = {};
-          for (const level of reasoning.levels) {
-            entry.variants[level] = { reasoningEffort: level };
-          }
-          if (reasoning.default) {
-            entry.options = { reasoningEffort: reasoning.default };
-          }
-          // Thinking-off variant per the router's disable keyword
-          const off = disableVariantOf(reasoning);
-          if (off) entry.variants.none = off;
-        }
-        const pricing = m.pricing;
-        if (pricing?.input || pricing?.output) {
-          entry.cost = {
-            input: pricing.input ?? 0,
-            output: pricing.output ?? 0,
-            cache_read: pricing.cache_read ?? 0,
-            cache_write: pricing.cache_write ?? 0,
-          };
-        }
-        models[m.id] = entry;
-      }
-      if (Object.keys(models).length > 0) {
-        cfg.models = models;
-        if (cfg.options) cfg.options.baseURL = baseURL;
-        // console.log(`openai-compatible-autodiscover: loaded ${Object.keys(models).length} models for "${id}"`);
-      }
-    } catch (e) {
-      console.warn(`openai-compatible-autodiscover: failed to discover models for "${id}":`, e.message);
+    const headers = {};
+    if (apiKey && typeof apiKey === "string" && apiKey !== "") {
+      headers["Authorization"] = `Bearer ${apiKey}`;
     }
+    const headerArg = Object.keys(headers).length > 0 ? headers : undefined;
+    const maxRetries = 5;
+    const timeoutMs = 5000;
+    const url = baseURL + "/models";
+
+    let lastError;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        const res = await fetch(url, {
+          headers: headerArg,
+          signal: controller.signal,
+        });
+        clearTimeout(timer);
+        const data = await res.json();
+        const existingModels = cfg.models || {};
+        const models = { ...existingModels };
+        for (const m of data.data || []) {
+        // Respect existing configured models
+          if (existingModels[m.id]) continue;
+        // Skip embedding models
+          if (m.id.toLowerCase().includes("embedding") || m.id.toLowerCase().includes("embed")) continue;
+          const contextLimit = contextLimitOf(m);
+          const outputLimit = outputLimitOf(m) ?? (contextLimit ? defaultOutputLimit(contextLimit) : undefined);
+          const inputModalities = (m.architecture?.input_modalities ?? m.modalities ?? ["text"]).map((s) => s.toLowerCase());
+          const outputModalities = (m.architecture?.output_modalities ?? ["text"]).map((s) => s.toLowerCase());
+          const params = Array.isArray(m.supported_parameters) ? m.supported_parameters : undefined;
+          const reasoning = reasoningOf(m);
+          const entry = {
+            name: beautifyModelName(m.id),
+            tool_call: params ? params.includes("tools") : true,
+            modalities: { input: inputModalities, output: outputModalities },
+          };
+          if (contextLimit && outputLimit) {
+            entry.limit = { context: contextLimit, output: outputLimit };
+          }
+          if (reasoning) {
+            entry.reasoning = true;
+            entry.variants = {};
+            for (const level of reasoning.levels) {
+              entry.variants[level] = { reasoningEffort: level };
+            }
+            if (reasoning.default) {
+              entry.options = { reasoningEffort: reasoning.default };
+            }
+          // Thinking-off variant per the router's disable keyword
+            const off = disableVariantOf(reasoning);
+            if (off) entry.variants.none = off;
+          }
+          const pricing = m.pricing;
+          if (pricing?.input || pricing?.output) {
+            entry.cost = {
+              input: pricing.input ?? 0,
+              output: pricing.output ?? 0,
+              cache_read: pricing.cache_read ?? 0,
+              cache_write: pricing.cache_write ?? 0,
+            };
+          }
+          models[m.id] = entry;
+        }
+        if (Object.keys(models).length > 0) {
+          cfg.models = models;
+          if (cfg.options) cfg.options.baseURL = baseURL;
+        }
+        return;
+      } catch (e) {
+        lastError = e;
+        if (attempt < maxRetries) {
+          console.warn(
+            `openai-compatible-autodiscover: discovery attempt ${attempt}/${maxRetries} failed for "${id}": ${e.message}`
+          );
+        }
+      }
+    }
+    console.warn(
+      `openai-compatible-autodiscover: failed to discover models for "${id}" after ${maxRetries} attempts:`,
+      lastError?.message
+    );
   };
 
   return {
