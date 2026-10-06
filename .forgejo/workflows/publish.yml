@@ -1,0 +1,89 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  publish:
+    name: Publish to Forgejo npm registry
+    runs-on: linux-amd64
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://git.shitpost.work/api/packages/shitpost.work/npm/
+          cache: npm
+
+      - name: Validate tag and package version
+        id: package
+        shell: bash
+        run: |
+          PACKAGE_NAME="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).name")"
+          PACKAGE_VERSION="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")"
+
+          if [[ -z "$PACKAGE_NAME" || -z "$PACKAGE_VERSION" ]]; then
+            echo "package.json must define a name and version" >&2
+            exit 1
+          fi
+          if [[ ! "$PACKAGE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "package.json version must be a stable semver (x.y.z): $PACKAGE_VERSION" >&2
+            exit 1
+          fi
+
+          if [[ "$FORGEJO_REF_NAME" != "v$PACKAGE_VERSION" ]]; then
+            echo "Tag $FORGEJO_REF_NAME does not match package version $PACKAGE_VERSION" >&2
+            exit 1
+          fi
+
+          {
+            echo "name=$PACKAGE_NAME"
+            echo "version=$PACKAGE_VERSION"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Check whether version already exists
+        id: pkg-version
+        shell: bash
+        env:
+          PACKAGE_NAME: ${{ steps.package.outputs.name }}
+          PACKAGE_VERSION: ${{ steps.package.outputs.version }}
+        run: |
+          if NPM_VIEW_OUTPUT="$(npm view "$PACKAGE_NAME@$PACKAGE_VERSION" version 2>&1)"; then
+            echo "version $PACKAGE_NAME@$PACKAGE_VERSION already exists; skipping publish"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$NPM_VIEW_OUTPUT" == *"E404"* || "$NPM_VIEW_OUTPUT" == *"404 Not Found"* ]]; then
+            echo "version $PACKAGE_NAME@$PACKAGE_VERSION is not published yet"
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "$NPM_VIEW_OUTPUT" >&2
+            echo "Could not safely determine whether the version exists" >&2
+            exit 1
+          fi
+
+      - name: Publish to Forgejo
+        if: steps.pkg-version.outputs.exists != 'true'
+        run: npm publish --access public
+
+      - name: Create release
+        env:
+          FORGEJO_TOKEN: ${{ secrets.NPM_TOKEN }}
+        shell: bash
+        run: |
+          OWNER="$(echo "$FORGEJO_REPOSITORY" | cut -d'/' -f1)"
+          REPO="$(echo "$FORGEJO_REPOSITORY" | cut -d'/' -f2)"
+          TAG="$FORGEJO_REF_NAME"
+          if curl -s -o /dev/null -w "%{http_code}" "https://git.shitpost.work/api/v1/repos/$OWNER/$REPO/releases/tags/$TAG" | grep -q "200"; then
+            echo "Release $TAG already exists; skipping"
+          else
+            curl -s -X POST "https://git.shitpost.work/api/v1/repos/$OWNER/$REPO/releases" \
+              -H "Authorization: token $FORGEJO_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"tag_name\":\"$TAG\",\"generate_release_notes\":true}"
+          fi

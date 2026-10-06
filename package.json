@@ -1,11 +1,19 @@
 {
-  "name": "opencode-openai-compatible-autodiscover",
+  "name": "@shitpost.work/opencode-autodiscovery",
   "version": "1.3.0",
   "description": "Auto-discover models from OpenAI-compatible endpoints (llama.cpp, Ollama, etc.)",
   "type": "module",
-  "main": "openai-compatible-autodiscover.js",
+  "main": "opencode-autodiscovery.js",
   "exports": {
-    ".": "./openai-compatible-autodiscover.js"
+    ".": "./opencode-autodiscovery.js"
+  },
+  "files": [
+    "opencode-autodiscovery.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "pack:check": "npm pack --dry-run"
   },
   "license": "MIT",
   "author": "HarutoHiroki",

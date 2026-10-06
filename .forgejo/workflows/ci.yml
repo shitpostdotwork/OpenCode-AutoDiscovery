@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "*.js"
+      - "package.json"
+      - ".forgejo/**"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "*.js"
+      - "package.json"
+      - ".forgejo/**"
+  workflow_dispatch:
+
+jobs:
+  quality:
+    name: Quality checks
+    runs-on: linux-amd64
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Check package contents
+        run: npm run pack:check

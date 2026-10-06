@@ -18,16 +18,22 @@ opencode doesn't auto-discover models from local endpoints. You have to manually
 
 ## Installation
 
-### From git
+### Via npm
 
 Add to your `opencode.json`:
 
 ```json
 {
   "plugin": [
-    "HarutoHiroki/OpenCode-AutoDiscovery#main"
+    "@shitpost.work/opencode-autodiscovery"
   ]
 }
+```
+
+Configure the Forgejo registry if needed:
+
+```bash
+npm config set @shitpost.work:registry https://git.shitpost.work/api/packages/shitpost.work/npm/
 ```
 
 ### From local path
@@ -35,7 +41,7 @@ Add to your `opencode.json`:
 ```json
 {
   "plugin": [
-    "/path/to/OpenCode-AutoDiscovery"
+    "/path/to/opencode-autodiscovery"
   ]
 }
 ```
