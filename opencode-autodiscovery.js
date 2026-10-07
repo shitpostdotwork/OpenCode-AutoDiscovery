@@ -196,10 +196,10 @@ export default async () => {
           const cacheWritePrice = toNum(pricing?.cache_write);
           if (promptPrice || completionPrice) {
             entry.cost = {
-              input: promptPrice ?? 0,
-              output: completionPrice ?? 0,
-              cache_read: cacheReadPrice ?? 0,
-              cache_write: cacheWritePrice ?? 0,
+              input: (promptPrice ?? 0) * 1000000,
+              output: (completionPrice ?? 0) * 1000000,
+              cache_read: (cacheReadPrice ?? 0) * 1000000,
+              cache_write: (cacheWritePrice ?? 0) * 1000000,
             };
           }
           models[m.id] = entry;
